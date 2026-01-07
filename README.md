@@ -224,14 +224,14 @@ zerowaste.lat/
 - [ ] Lista de compras funcional
 - [ ] Métricas básicas
 
-### Fase 2: Mejoras (Q1 2025)
+### Fase 2: Mejoras (Q2 2026)
 - [ ] Sistema de favoritos
 - [ ] Historial de menús
 - [ ] Compartir menú/recetas
 - [ ] Notificaciones push
 - [ ] Autenticación de usuarios
 
-### Fase 3: Expansión (Q2 2025)
+### Fase 3: Expansión (Q3 2026)
 - [ ] Múltiples perfiles familiares
 - [ ] Integración con supermercados
 - [ ] Recetas de la comunidad

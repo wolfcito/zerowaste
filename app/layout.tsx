@@ -6,7 +6,7 @@ import "./globals.css"
 const inter = Inter({ subsets: ["latin"] })
 
 export const metadata: Metadata = {
-  title: "Planificador de Comidas Familiar",
+  title: "Zerowaste - Planificador de Comidas Familiar",
   description: "Planifica tus comidas, reduce el desperdicio y ahorra dinero",
     generator: 'v0.dev'
 }
