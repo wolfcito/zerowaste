@@ -353,3 +353,70 @@ export async function getRecommendations() {
   if (error) throw error
   return data
 }
+
+// Servicio para manejar lista de compras
+export async function saveShoppingList(items: any[]) {
+  return withTransaction(async (supabase) => {
+    logger.info('Saving shopping list', { count: items.length })
+
+    // Primero eliminamos los registros existentes
+    const { error: deleteError } = await supabase
+      .from("shopping_list")
+      .delete()
+      .neq("id", "00000000-0000-0000-0000-000000000000")
+
+    if (deleteError) {
+      logger.error('Error deleting existing shopping list', deleteError)
+      throw deleteError
+    }
+
+    // Luego insertamos los nuevos registros
+    const { data, error } = await supabase
+      .from("shopping_list")
+      .insert(
+        items.map((item) => ({
+          ingredient_name: item.name,
+          quantity: item.quantity,
+          unit: item.unit,
+          category: item.category,
+          is_purchased: false,
+        })),
+      )
+      .select()
+
+    if (error) {
+      logger.error('Error inserting shopping list', error)
+      throw error
+    }
+
+    logger.info('Shopping list saved successfully', { count: data.length })
+    return data
+  })
+}
+
+export async function getShoppingList() {
+  const supabase = createServerSupabaseClient()
+  const { data, error } = await supabase
+    .from("shopping_list")
+    .select("*")
+    .order("category", { ascending: true })
+  if (error) throw error
+  return data
+}
+
+export async function updateShoppingItemStatus(itemId: string, isPurchased: boolean) {
+  return withTransaction(async (supabase) => {
+    const { data, error } = await supabase
+      .from("shopping_list")
+      .update({ is_purchased: isPurchased })
+      .eq("id", itemId)
+      .select()
+
+    if (error) {
+      logger.error('Error updating shopping item status', error)
+      throw error
+    }
+
+    return data
+  })
+}

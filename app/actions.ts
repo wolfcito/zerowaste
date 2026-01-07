@@ -14,6 +14,10 @@ import {
   getProhibitedDishes,
   getProducts,
   getLeftovers,
+  getWeeklyMenu,
+  saveShoppingList,
+  getShoppingList,
+  updateShoppingItemStatus,
 } from "@/services/supabase-service"
 
 import {
@@ -229,6 +233,137 @@ export async function generateMetricsData() {
     }
   } catch (error) {
     logger.error('Error in generateMetricsData', error)
+    return { success: false, error }
+  }
+}
+
+// Función para categorizar ingredientes automáticamente
+function categorizeIngredient(ingredientName: string): string {
+  const name = ingredientName.toLowerCase()
+
+  // Proteínas
+  if (name.includes('pollo') || name.includes('pechuga') || name.includes('carne') ||
+      name.includes('res') || name.includes('cerdo') || name.includes('pescado') ||
+      name.includes('salmón') || name.includes('atún') || name.includes('camarón')) {
+    return 'Proteína'
+  }
+
+  // Verduras
+  if (name.includes('tomate') || name.includes('lechuga') || name.includes('cebolla') ||
+      name.includes('zanahoria') || name.includes('papa') || name.includes('brócoli') ||
+      name.includes('espinaca') || name.includes('calabaza') || name.includes('pimiento') ||
+      name.includes('aguacate') || name.includes('pepino')) {
+    return 'Verduras'
+  }
+
+  // Lácteos
+  if (name.includes('leche') || name.includes('queso') || name.includes('yogurt') ||
+      name.includes('crema') || name.includes('mantequilla')) {
+    return 'Lácteos'
+  }
+
+  // Huevos
+  if (name.includes('huevo')) {
+    return 'Huevos'
+  }
+
+  // Granos y cereales
+  if (name.includes('arroz') || name.includes('pasta') || name.includes('pan') ||
+      name.includes('harina') || name.includes('avena') || name.includes('cereal')) {
+    return 'Granos'
+  }
+
+  // Frutas
+  if (name.includes('manzana') || name.includes('plátano') || name.includes('naranja') ||
+      name.includes('fresa') || name.includes('uva') || name.includes('limón')) {
+    return 'Frutas'
+  }
+
+  // Default
+  return 'Otros'
+}
+
+// Acción para generar lista de compras desde el menú semanal
+export async function generateShoppingList() {
+  try {
+    logger.info('Starting shopping list generation')
+
+    // Obtener menú semanal
+    const weeklyMenu = await getWeeklyMenu()
+
+    if (!weeklyMenu || weeklyMenu.length === 0) {
+      logger.warn('No weekly menu found')
+      return { success: false, error: 'No hay menú semanal disponible' }
+    }
+
+    logger.debug('Retrieved weekly menu', { daysCount: weeklyMenu.length })
+
+    // Extraer todos los ingredientes de todas las recetas
+    const allIngredients: any[] = []
+
+    for (const day of weeklyMenu) {
+      try {
+        // Parsear el JSON de la receta
+        const recipe = typeof day.recipe === 'string' ? JSON.parse(day.recipe) : day.recipe
+
+        if (recipe.ingredients && Array.isArray(recipe.ingredients)) {
+          recipe.ingredients.forEach((ingredient: any) => {
+            allIngredients.push({
+              name: ingredient.name,
+              quantity: ingredient.quantity || '1',
+              unit: ingredient.unit || '',
+              category: categorizeIngredient(ingredient.name)
+            })
+          })
+        }
+      } catch (parseError) {
+        logger.warn('Error parsing recipe for day', { day: day.day, error: parseError })
+      }
+    }
+
+    logger.info('Extracted ingredients', { count: allIngredients.length })
+
+    if (allIngredients.length === 0) {
+      logger.warn('No ingredients found in menu')
+      return { success: false, error: 'No se encontraron ingredientes en el menú' }
+    }
+
+    // Consolidar ingredientes duplicados (misma categoría y nombre)
+    const consolidatedIngredients = allIngredients.reduce((acc: any[], current) => {
+      const existing = acc.find(item =>
+        item.name.toLowerCase() === current.name.toLowerCase() &&
+        item.category === current.category
+      )
+
+      if (!existing) {
+        acc.push(current)
+      }
+      // Si ya existe, podrías sumar cantidades aquí si lo deseas
+      // Por ahora solo mantenemos la primera ocurrencia
+
+      return acc
+    }, [])
+
+    logger.info('Consolidated ingredients', { count: consolidatedIngredients.length })
+
+    // Guardar en base de datos
+    await saveShoppingList(consolidatedIngredients)
+
+    logger.info('Shopping list generation completed successfully')
+    return { success: true, count: consolidatedIngredients.length }
+  } catch (error) {
+    logger.error('Error in generateShoppingList', error)
+    return { success: false, error }
+  }
+}
+
+// Acción para actualizar estado de un item de la lista
+export async function updateShoppingItem(itemId: string, isPurchased: boolean) {
+  try {
+    await updateShoppingItemStatus(itemId, isPurchased)
+    return { success: true }
+  } catch (error) {
+    logger.error('Error updating shopping item', error)
     return { success: false, error }
   }
 }
