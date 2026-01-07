@@ -1,17 +1,16 @@
 "use client"
 
 import { useState } from "react"
-import { ArrowLeft, Share2, Heart, Clock, Users, BarChart3, Flame, ListPlus, Play, Timer, Check } from "lucide-react"
+import { ArrowLeft, Share2, Heart, Clock, Users, BarChart3, Flame, ShoppingCart, Timer, Minus, Plus, Star, Leaf, Salad } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { Card } from "@/components/ui/card"
 import { useRouter } from "next/navigation"
-import { Badge } from "@/components/ui/badge"
+import { BottomNavigation } from "./bottom-navigation"
 
 type Ingredient = {
   name: string
   quantity: string
   unit: string
-  description?: string
-  checked?: boolean
 }
 
 type Step = {
@@ -24,50 +23,53 @@ type Step = {
 type Recipe = {
   id: string
   name: string
-  category: string
+  tags: string[]
   image: string
   cookingTime: number
   servings: number
   difficulty: string
   calories: number
-  description: string
+  rating: number
+  reviewCount: number
+  ecoTip: string
   ingredients: Ingredient[]
   steps: Step[]
 }
 
 const sampleRecipe: Recipe = {
   id: "1",
-  name: "Lasaña Familiar de Calabacín",
-  category: "CENA FAMILIAR",
-  image: "/recipe-lasagna.png",
-  cookingTime: 45,
-  servings: 4,
+  name: "Pasta de Calabacín y Pesto",
+  tags: ["BAJO DESPERDICIO", "Vegano"],
+  image: "/recipe-pasta.png",
+  cookingTime: 25,
+  servings: 2,
   difficulty: "Fácil",
-  calories: 320,
-  description: "Una versión saludable y deliciosa de la lasaña clásica. Sustituimos la pasta por láminas de calabacín fresco, perfectas para una cena nutritiva y ligera sin sacrificar el sabor.",
+  calories: 450,
+  rating: 4.8,
+  reviewCount: 120,
+  ecoTip: "No tires los tallos del calabacín. Guárdalos para hacer un caldo de verduras casero más tarde.",
   ingredients: [
-    { name: "calabacines grandes", quantity: "2", unit: "", description: "Cortados en láminas finas", checked: false },
-    { name: "carne picada", quantity: "500", unit: "g", description: "Ternera magra o pavo", checked: false },
-    { name: "tomate triturado", quantity: "400", unit: "g", description: "Natural o en conserva", checked: true },
-    { name: "queso mozzarella", quantity: "200", unit: "g", description: "Rallado para gratinar", checked: false },
-    { name: "cebolla y 2 dientes de ajo", quantity: "1", unit: "", checked: false },
+    { name: "Calabacines grandes", quantity: "2", unit: "un." },
+    { name: "Albahaca fresca", quantity: "50", unit: "g" },
+    { name: "Piñones", quantity: "30", unit: "g" },
+    { name: "Aceite de Oliva", quantity: "2", unit: "cdas." },
   ],
   steps: [
     {
       number: 1,
-      title: "Preparar el calabacín",
-      description: "Lavar los calabacines y cortar en láminas longitudinales finas. Espolvorear con un poco de sal y dejar reposar 10 min para que suelten agua. Secar bien con papel de cocina.",
+      title: "Preparar los calabacines",
+      description: "Lavar bien los calabacines. Con un espiralizador o un pelador de verduras, cortar los calabacines en tiras largas tipo espagueti.",
     },
     {
       number: 2,
-      title: "Hacer el relleno",
-      description: "En una sartén con aceite, sofreír la cebolla y el ajo picados. Añadir la carne, salpimentar y cocinar hasta que dore. Agregar el tomate y cocinar 10 minutos más a fuego lento.",
-      timer: 10,
+      title: "Tostar piñones",
+      description: "En una sartén pequeña sin aceite, tostar ligeramente los piñones a fuego medio hasta que estén dorados. Cuidado de no quemarlos.",
+      timer: 3,
     },
     {
       number: 3,
-      title: "Montar y hornear",
-      description: "En una fuente, alternar capas de calabacín, relleno de carne y queso. Terminar con una capa generosa de mozzarella. Hornear a 200°C durante 20 minutos o hasta que gratine.",
+      title: "Mezclar y servir",
+      description: "Mezclar la pasta de calabacín con el pesto casero y los piñones tostados. Servir inmediatamente.",
     },
   ],
 }
@@ -79,9 +81,8 @@ interface DetalleRecetaProps {
 export function DetalleReceta({ recipe = sampleRecipe }: DetalleRecetaProps) {
   const router = useRouter()
   const [isFavorite, setIsFavorite] = useState(false)
-  const [checkedIngredients, setCheckedIngredients] = useState<Set<number>>(
-    new Set(recipe.ingredients.map((ing, i) => ing.checked ? i : -1).filter(i => i >= 0))
-  )
+  const [servings, setServings] = useState(recipe.servings)
+  const [checkedIngredients, setCheckedIngredients] = useState<Set<number>>(new Set())
 
   const toggleIngredient = (index: number) => {
     const newChecked = new Set(checkedIngredients)
@@ -93,21 +94,23 @@ export function DetalleReceta({ recipe = sampleRecipe }: DetalleRecetaProps) {
     setCheckedIngredients(newChecked)
   }
 
-  const uncheckedCount = recipe.ingredients.length - checkedIngredients.size
+  const adjustServings = (increment: boolean) => {
+    setServings(prev => increment ? prev + 1 : Math.max(1, prev - 1))
+  }
 
   return (
     <div className="flex flex-col min-h-screen bg-background">
       {/* Hero Image */}
-      <div className="relative h-72 bg-gradient-to-br from-amber-600 to-orange-700 flex items-center justify-center">
-        <span className="text-8xl">🍝</span>
-        <div className="absolute inset-0 bg-gradient-to-b from-black/30 to-transparent" />
+      <div className="relative h-64 bg-gradient-to-br from-green-200 to-green-300 flex items-center justify-center">
+        <Salad className="h-32 w-32 text-secondary/60" />
+        <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent" />
 
         {/* Navigation Buttons */}
         <div className="absolute top-4 left-4 right-4 flex items-center justify-between">
           <Button
             variant="ghost"
             size="icon"
-            className="h-10 w-10 rounded-full bg-black/20 backdrop-blur-sm text-white hover:bg-black/30"
+            className="h-10 w-10 rounded-full bg-white/20 backdrop-blur-sm text-white hover:bg-white/30"
             onClick={() => router.back()}
           >
             <ArrowLeft className="h-5 w-5" />
@@ -116,7 +119,7 @@ export function DetalleReceta({ recipe = sampleRecipe }: DetalleRecetaProps) {
             <Button
               variant="ghost"
               size="icon"
-              className="h-10 w-10 rounded-full bg-black/20 backdrop-blur-sm text-white hover:bg-black/30"
+              className="h-10 w-10 rounded-full bg-white/20 backdrop-blur-sm text-white hover:bg-white/30"
             >
               <Share2 className="h-5 w-5" />
             </Button>
@@ -124,7 +127,7 @@ export function DetalleReceta({ recipe = sampleRecipe }: DetalleRecetaProps) {
               variant="ghost"
               size="icon"
               className={`h-10 w-10 rounded-full backdrop-blur-sm ${
-                isFavorite ? "bg-primary text-white" : "bg-black/20 text-white hover:bg-black/30"
+                isFavorite ? "bg-primary text-white" : "bg-white/20 text-white hover:bg-white/30"
               }`}
               onClick={() => setIsFavorite(!isFavorite)}
             >
@@ -132,133 +135,174 @@ export function DetalleReceta({ recipe = sampleRecipe }: DetalleRecetaProps) {
             </Button>
           </div>
         </div>
+
+        {/* Tags */}
+        <div className="absolute bottom-4 left-4 flex gap-2">
+          <span className="px-3 py-1 rounded-full bg-primary text-white text-xs font-semibold">
+            {recipe.tags[0]}
+          </span>
+          {recipe.tags[1] && (
+            <span className="px-3 py-1 rounded-full bg-white/80 text-foreground text-xs font-medium">
+              {recipe.tags[1]}
+            </span>
+          )}
+        </div>
       </div>
 
       {/* Content Card */}
-      <div className="flex-1 -mt-8 bg-background rounded-t-3xl relative">
+      <div className="flex-1 -mt-6 bg-white rounded-t-3xl relative pb-24">
         <div className="px-4 py-6">
-          {/* Category Badge */}
-          <Badge className="bg-primary/10 text-primary hover:bg-primary/20 mb-3">
-            {recipe.category}
-          </Badge>
+          {/* Title & Rating */}
+          <h1 className="text-2xl font-bold text-foreground mb-2">{recipe.name}</h1>
+          <div className="flex items-center gap-1 mb-4">
+            <Star className="h-4 w-4 fill-warning text-warning" />
+            <span className="font-medium text-foreground">{recipe.rating}</span>
+            <span className="text-muted-foreground text-sm">({recipe.reviewCount} reseñas)</span>
+          </div>
 
-          {/* Title */}
-          <h1 className="text-2xl font-bold text-foreground mb-4">{recipe.name}</h1>
-
-          {/* Info Row */}
-          <div className="flex flex-wrap gap-3 mb-4">
-            <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
-              <Clock className="h-4 w-4" />
-              <span>{recipe.cookingTime} min</span>
+          {/* Stats Row */}
+          <div className="flex justify-between mb-6">
+            <div className="flex flex-col items-center">
+              <div className="h-12 w-12 rounded-full bg-surface flex items-center justify-center mb-1">
+                <Clock className="h-5 w-5 text-muted-foreground" />
+              </div>
+              <span className="text-sm font-medium text-foreground">{recipe.cookingTime} min</span>
             </div>
-            <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
-              <Users className="h-4 w-4" />
-              <span>{recipe.servings} personas</span>
+            <div className="flex flex-col items-center">
+              <div className="h-12 w-12 rounded-full bg-surface flex items-center justify-center mb-1">
+                <Users className="h-5 w-5 text-muted-foreground" />
+              </div>
+              <span className="text-sm font-medium text-foreground">{recipe.servings} porciones</span>
             </div>
-            <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
-              <BarChart3 className="h-4 w-4" />
-              <span>{recipe.difficulty}</span>
+            <div className="flex flex-col items-center">
+              <div className="h-12 w-12 rounded-full bg-surface flex items-center justify-center mb-1">
+                <BarChart3 className="h-5 w-5 text-muted-foreground" />
+              </div>
+              <span className="text-sm font-medium text-foreground">{recipe.difficulty}</span>
             </div>
-            <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
-              <Flame className="h-4 w-4" />
-              <span>{recipe.calories} kcal</span>
+            <div className="flex flex-col items-center">
+              <div className="h-12 w-12 rounded-full bg-surface flex items-center justify-center mb-1">
+                <Flame className="h-5 w-5 text-muted-foreground" />
+              </div>
+              <span className="text-sm font-medium text-foreground">{recipe.calories} kcal</span>
             </div>
           </div>
 
-          {/* Description */}
-          <p className="text-muted-foreground text-sm mb-6 leading-relaxed">
-            {recipe.description}
-          </p>
-
-          {/* Add to List Button */}
-          <div className="flex gap-2 mb-8">
-            <Button className="flex-1 h-12 rounded-2xl bg-primary hover:bg-primary/90 text-white font-medium">
-              <ListPlus className="h-5 w-5 mr-2" />
-              Agregar a lista ({uncheckedCount})
-            </Button>
-            <Button
-              variant="outline"
-              size="icon"
-              className="h-12 w-12 rounded-2xl border-border"
-            >
-              <Play className="h-5 w-5" />
-            </Button>
-          </div>
+          {/* Eco-Tip Card */}
+          <Card className="p-4 rounded-2xl bg-secondary/10 border-0 mb-6">
+            <div className="flex gap-3">
+              <div className="h-8 w-8 rounded-full bg-secondary/20 flex items-center justify-center flex-shrink-0">
+                <Leaf className="h-4 w-4 text-secondary" />
+              </div>
+              <div>
+                <p className="font-semibold text-secondary text-sm mb-1">Eco-Tip</p>
+                <p className="text-sm text-accent leading-relaxed">{recipe.ecoTip}</p>
+              </div>
+            </div>
+          </Card>
 
           {/* Ingredients Section */}
-          <section className="mb-8">
-            <h2 className="text-lg font-bold text-foreground mb-4">Para la lasaña</h2>
+          <section className="mb-6">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-bold text-foreground">Ingredientes</h2>
+              <button className="text-primary text-sm font-medium">Ver todos</button>
+            </div>
+
+            {/* Servings Selector */}
+            <div className="flex items-center gap-4 mb-4">
+              <span className="text-sm text-muted-foreground">Porciones:</span>
+              <div className="flex items-center gap-2 bg-surface rounded-full px-2 py-1">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8 rounded-full"
+                  onClick={() => adjustServings(false)}
+                >
+                  <Minus className="h-4 w-4" />
+                </Button>
+                <span className="w-8 text-center font-semibold">{servings}</span>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8 rounded-full"
+                  onClick={() => adjustServings(true)}
+                >
+                  <Plus className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+
+            {/* Ingredients List */}
             <div className="space-y-3">
               {recipe.ingredients.map((ingredient, index) => (
                 <button
                   key={index}
                   onClick={() => toggleIngredient(index)}
-                  className="w-full flex items-start gap-3 text-left"
+                  className="w-full flex items-center justify-between py-2"
                 >
-                  <div className={`mt-0.5 h-5 w-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 transition-colors ${
-                    checkedIngredients.has(index)
-                      ? "bg-primary border-primary"
-                      : "border-border"
-                  }`}>
-                    {checkedIngredients.has(index) && (
-                      <Check className="h-3 w-3 text-white" />
-                    )}
+                  <div className="flex items-center gap-3">
+                    <div className={`h-5 w-5 rounded-full border-2 flex items-center justify-center transition-colors ${
+                      checkedIngredients.has(index)
+                        ? "bg-primary border-primary"
+                        : "border-muted-foreground/30"
+                    }`}>
+                      {checkedIngredients.has(index) && (
+                        <svg className="h-3 w-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                        </svg>
+                      )}
+                    </div>
+                    <span className={`font-medium ${checkedIngredients.has(index) ? "line-through text-muted-foreground" : "text-foreground"}`}>
+                      {ingredient.name}
+                    </span>
                   </div>
-                  <div className={checkedIngredients.has(index) ? "text-muted-foreground line-through" : ""}>
-                    <p className="font-medium text-foreground">
-                      {ingredient.quantity}{ingredient.unit} {ingredient.name}
-                    </p>
-                    {ingredient.description && (
-                      <p className="text-sm text-muted-foreground">{ingredient.description}</p>
-                    )}
-                  </div>
+                  <span className="text-sm text-muted-foreground">
+                    {ingredient.quantity} {ingredient.unit}
+                  </span>
                 </button>
               ))}
             </div>
           </section>
 
-          {/* Steps Section */}
-          <section className="mb-8">
-            <h2 className="text-lg font-bold text-foreground mb-4">Pasos de preparación</h2>
+          {/* Add to Shopping List Button */}
+          <Button className="w-full h-14 rounded-2xl bg-primary hover:bg-primary/90 text-white font-semibold mb-8">
+            <ShoppingCart className="h-5 w-5 mr-2" />
+            Agregar a lista de compras
+          </Button>
+
+          {/* Preparation Section */}
+          <section>
+            <h2 className="text-lg font-bold text-foreground mb-4">Preparación</h2>
             <div className="space-y-6">
               {recipe.steps.map((step) => (
                 <div key={step.number} className="flex gap-4">
-                  <div className="flex-shrink-0">
-                    <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center">
-                      <span className="text-sm font-bold text-primary">{step.number}</span>
+                  <div className="flex flex-col items-center">
+                    <div className="h-8 w-8 rounded-full bg-primary flex items-center justify-center flex-shrink-0">
+                      <span className="text-sm font-bold text-white">{step.number}</span>
                     </div>
+                    {step.number < recipe.steps.length && (
+                      <div className="w-0.5 flex-1 bg-primary/20 mt-2" />
+                    )}
                   </div>
-                  <div className="flex-1">
+                  <div className="flex-1 pb-4">
                     <h3 className="font-semibold text-foreground mb-2">{step.title}</h3>
                     <p className="text-sm text-muted-foreground leading-relaxed">{step.description}</p>
                     {step.timer && (
-                      <div className="flex items-center gap-2 mt-3 text-primary">
+                      <button className="flex items-center gap-2 mt-3 px-4 py-2 rounded-full border border-primary text-primary text-sm font-medium">
                         <Timer className="h-4 w-4" />
-                        <span className="text-sm font-medium">Temporizador: {step.timer} min</span>
-                      </div>
+                        Iniciar {step.timer}:00 min
+                      </button>
                     )}
                   </div>
                 </div>
               ))}
-
-              {/* Final Step */}
-              <div className="flex gap-4">
-                <div className="flex-shrink-0">
-                  <div className="h-8 w-8 rounded-full bg-green-100 flex items-center justify-center">
-                    <Check className="h-4 w-4 text-green-600" />
-                  </div>
-                </div>
-                <div className="flex-1">
-                  <h3 className="font-semibold text-foreground mb-2">¡Listo para servir!</h3>
-                  <p className="text-sm text-muted-foreground leading-relaxed">
-                    Deja reposar 5 minutos antes de cortar para que las capas se asienten mejor.
-                  </p>
-                </div>
-              </div>
             </div>
           </section>
         </div>
       </div>
+
+      {/* Bottom Navigation */}
+      <BottomNavigation />
     </div>
   )
 }
