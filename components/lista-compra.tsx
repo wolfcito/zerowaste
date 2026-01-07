@@ -8,6 +8,7 @@ import { useRouter } from "next/navigation"
 import { BottomNavigation } from "./bottom-navigation"
 import { generateShoppingList, updateShoppingItem } from "@/app/actions"
 import { createClientSupabaseClient } from "@/lib/supabase"
+import { generateShoppingListPDF } from "@/lib/pdf-generator"
 
 type Category = {
   id: string
@@ -192,8 +193,18 @@ export function ListaCompra() {
   }
 
   const downloadPDF = () => {
-    // TODO: Implementar descarga PDF
-    alert("Descargando lista de compra en PDF...")
+    if (categories.length === 0) {
+      alert("No hay items en la lista para descargar")
+      return
+    }
+
+    try {
+      // Generar y descargar PDF
+      generateShoppingListPDF(categories)
+    } catch (error) {
+      console.error("Error generating PDF:", error)
+      alert("Error al generar el PDF")
+    }
   }
 
   const getTotalItems = (category: Category) => category.items.length
