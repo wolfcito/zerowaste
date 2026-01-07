@@ -1,15 +1,18 @@
 "use client"
 
 import { useState } from "react"
-import { ArrowLeft, ChevronDown, ChevronUp, Download } from "lucide-react"
+import { ArrowLeft, ChevronDown, ChevronUp, Download, Check, Circle, Beef, Carrot, Milk, Package } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { Card } from "@/components/ui/card"
 import { useRouter } from "next/navigation"
-import { Checkbox } from "@/components/ui/checkbox"
-import { Label } from "@/components/ui/label"
+import { BottomNavigation } from "./bottom-navigation"
 
 type Category = {
   id: string
   name: string
+  icon: typeof Beef
+  color: string
+  bgColor: string
   expanded: boolean
   items: ShoppingItem[]
 }
@@ -27,31 +30,49 @@ export function ListaCompra() {
     {
       id: "1",
       name: "Proteína",
+      icon: Beef,
+      color: "text-primary",
+      bgColor: "bg-primary/10",
       expanded: true,
       items: [
-        { id: "1", name: "Pollo entero", quantity: "1 kg", checked: false },
-        { id: "2", name: "Carne molida", quantity: "500 g", checked: false },
-        { id: "3", name: "Pescado", quantity: "400 g", checked: false },
+        { id: "1", name: "Pechuga de Pollo", quantity: "500g", checked: false },
+        { id: "2", name: "Huevos", quantity: "12 u", checked: true },
+        { id: "3", name: "Salmón", quantity: "2 filetes", checked: false },
       ],
     },
     {
       id: "2",
       name: "Verduras",
+      icon: Carrot,
+      color: "text-secondary",
+      bgColor: "bg-secondary/10",
       expanded: true,
       items: [
-        { id: "4", name: "Zanahorias", quantity: "500 g", checked: false },
-        { id: "5", name: "Tomates", quantity: "6 unidades", checked: false },
-        { id: "6", name: "Lechuga", quantity: "1 unidad", checked: false },
-        { id: "7", name: "Cebolla", quantity: "3 unidades", checked: false },
+        { id: "4", name: "Tomates", quantity: "1 kg", checked: false },
+        { id: "5", name: "Lechuga", quantity: "1 u", checked: false },
       ],
     },
     {
       id: "3",
       name: "Lácteos",
-      expanded: true,
+      icon: Milk,
+      color: "text-info",
+      bgColor: "bg-info/10",
+      expanded: false,
       items: [
-        { id: "8", name: "Leche", quantity: "1 L", checked: false },
-        { id: "9", name: "Queso", quantity: "200 g", checked: false },
+        { id: "6", name: "Leche", quantity: "1 L", checked: false },
+        { id: "7", name: "Queso", quantity: "200 g", checked: false },
+      ],
+    },
+    {
+      id: "4",
+      name: "Otros",
+      icon: Package,
+      color: "text-amber-700",
+      bgColor: "bg-amber-100",
+      expanded: false,
+      items: [
+        { id: "8", name: "Pan integral", quantity: "1 u", checked: false },
       ],
     },
   ])
@@ -96,70 +117,120 @@ export function ListaCompra() {
   }
 
   const downloadPDF = () => {
-    // Implementación para descargar PDF
     alert("Descargando lista de compra en PDF...")
   }
 
+  const getTotalItems = (category: Category) => category.items.length
+
   return (
-    <div className="flex flex-col min-h-screen">
+    <div className="flex flex-col min-h-screen bg-surface">
       {/* Header */}
-      <header className="p-4 flex items-center border-b">
-        <Button variant="ghost" size="icon" onClick={() => router.back()}>
-          <ArrowLeft className="h-5 w-5" />
-          <span className="sr-only">Atrás</span>
-        </Button>
-        <h1 className="text-xl font-medium ml-2">Mis compras</h1>
+      <header className="px-4 py-4 flex items-center justify-between bg-white">
+        <div className="flex items-center">
+          <Button variant="ghost" size="icon" onClick={() => router.back()} className="-ml-2">
+            <ArrowLeft className="h-5 w-5" />
+          </Button>
+          <h1 className="text-lg font-bold ml-1">Mis compras</h1>
+        </div>
+        <button className="text-primary font-semibold text-sm">Editar</button>
       </header>
 
+      {/* Action Buttons */}
+      <div className="px-4 py-3 flex gap-3 bg-white">
+        <Card
+          className="flex-1 flex items-center justify-center gap-2 py-3 rounded-2xl border-0 bg-surface cursor-pointer hover:bg-surface/80"
+          onClick={markAll}
+        >
+          <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center">
+            <Check className="h-4 w-4 text-primary" />
+          </div>
+          <span className="font-medium text-sm text-foreground">Marcar todo</span>
+        </Card>
+        <Card
+          className="flex-1 flex items-center justify-center gap-2 py-3 rounded-2xl border-0 bg-surface cursor-pointer hover:bg-surface/80"
+          onClick={downloadPDF}
+        >
+          <div className="h-8 w-8 rounded-full bg-surface flex items-center justify-center">
+            <Download className="h-4 w-4 text-muted-foreground" />
+          </div>
+          <div className="text-center">
+            <span className="font-medium text-sm text-foreground">Descargar</span>
+            <span className="font-medium text-sm text-foreground block">PDF</span>
+          </div>
+        </Card>
+      </div>
+
       {/* Body */}
-      <main className="flex-1 p-4">
-        <div className="space-y-4">
-          {categories.map((category) => (
-            <div key={category.id} className="border rounded-lg overflow-hidden">
-              <div
-                className="flex items-center justify-between p-3 bg-slate-50 cursor-pointer"
-                onClick={() => toggleCategory(category.id)}
-              >
-                <h2 className="font-medium">{category.name}</h2>
-                {category.expanded ? <ChevronUp className="h-5 w-5" /> : <ChevronDown className="h-5 w-5" />}
-              </div>
-              {category.expanded && (
-                <div className="p-3 space-y-2">
-                  {category.items.map((item) => (
-                    <div key={item.id} className="flex items-center justify-between">
-                      <div className="flex items-center space-x-2">
-                        <Checkbox
-                          id={`item-${item.id}`}
-                          checked={item.checked}
-                          onCheckedChange={() => toggleItem(category.id, item.id)}
-                        />
-                        <Label
-                          htmlFor={`item-${item.id}`}
-                          className={`text-base ${item.checked ? "line-through text-slate-400" : ""}`}
-                        >
-                          {item.name}
-                        </Label>
-                      </div>
-                      <span className="text-sm text-slate-500">{item.quantity}</span>
+      <main className="flex-1 px-4 pt-4 pb-24 overflow-auto">
+        <div className="space-y-3">
+          {categories.map((category) => {
+            const Icon = category.icon
+            return (
+              <Card key={category.id} className="rounded-2xl border-0 bg-white overflow-hidden">
+                {/* Category Header */}
+                <button
+                  className="w-full flex items-center justify-between p-4"
+                  onClick={() => toggleCategory(category.id)}
+                >
+                  <div className="flex items-center gap-3">
+                    <div className={`h-10 w-10 rounded-full ${category.bgColor} flex items-center justify-center`}>
+                      <Icon className={`h-5 w-5 ${category.color}`} />
                     </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          ))}
+                    <span className="font-bold text-foreground">{category.name}</span>
+                    <span className="h-6 w-6 rounded-full bg-surface flex items-center justify-center text-xs font-medium text-muted-foreground">
+                      {getTotalItems(category)}
+                    </span>
+                  </div>
+                  {category.expanded ? (
+                    <ChevronUp className="h-5 w-5 text-muted-foreground" />
+                  ) : (
+                    <ChevronDown className="h-5 w-5 text-muted-foreground" />
+                  )}
+                </button>
+
+                {/* Items */}
+                {category.expanded && (
+                  <div className="px-4 pb-4">
+                    <div className="border-t border-dashed border-border/50" />
+                    <div className="pt-3 space-y-1">
+                      {category.items.map((item, index) => (
+                        <div key={item.id}>
+                          <button
+                            className="w-full flex items-center justify-between py-2"
+                            onClick={() => toggleItem(category.id, item.id)}
+                          >
+                            <div className="flex items-center gap-3">
+                              <div className={`h-5 w-5 rounded-full border-2 flex items-center justify-center transition-colors ${
+                                item.checked
+                                  ? "bg-primary border-primary"
+                                  : "border-muted-foreground/30"
+                              }`}>
+                                {item.checked && <Check className="h-3 w-3 text-white" />}
+                              </div>
+                              <span className={`font-medium ${item.checked ? "line-through text-muted-foreground" : "text-foreground"}`}>
+                                {item.name}
+                              </span>
+                            </div>
+                            <span className={`text-sm ${item.checked ? "text-primary" : "text-muted-foreground"}`}>
+                              {item.quantity}
+                            </span>
+                          </button>
+                          {index < category.items.length - 1 && (
+                            <div className="border-b border-dashed border-border/50 ml-8" />
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </Card>
+            )
+          })}
         </div>
       </main>
 
-      {/* Footer */}
-      <footer className="p-4 border-t flex gap-2">
-        <Button variant="outline" className="flex-1" onClick={markAll}>
-          Marcar
-        </Button>
-        <Button className="flex-1" onClick={downloadPDF}>
-          <Download className="h-4 w-4 mr-2" />
-          Descargar lista
-        </Button>
-      </footer>
+      {/* Bottom Navigation */}
+      <BottomNavigation />
     </div>
   )
 }
