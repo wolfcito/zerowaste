@@ -1,8 +1,30 @@
 import { generateText } from "ai"
-import { openai } from "@ai-sdk/openai"
+import { openai, createOpenAI } from "@ai-sdk/openai"
+
+/**
+ * Obtiene la API key a usar (custom o del proyecto)
+ * @param customApiKey - API key personalizada del usuario (opcional)
+ * @returns API key a usar
+ */
+function getApiKey(customApiKey?: string): string {
+  return customApiKey || process.env.OPENAI_API_KEY || ''
+}
+
+/**
+ * Crea una instancia de OpenAI con la API key apropiada
+ */
+function getOpenAIInstance(customApiKey?: string) {
+  const apiKey = getApiKey(customApiKey)
+
+  if (customApiKey) {
+    return createOpenAI({ apiKey: customApiKey })
+  }
+
+  return openai
+}
 
 // Función para procesar imágenes de facturas
-export async function processReceiptImage(imageBase64: string) {
+export async function processReceiptImage(imageBase64: string, customApiKey?: string) {
   const base64Image = imageBase64.split(",")[1] // Eliminar el prefijo de data URL si existe
 
   try {
@@ -10,7 +32,7 @@ export async function processReceiptImage(imageBase64: string) {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "Authorization": `Bearer ${process.env.OPENAI_API_KEY}`
+        "Authorization": `Bearer ${getApiKey(customApiKey)}`
       },
       body: JSON.stringify({
         model: "gpt-4o",
@@ -102,9 +124,10 @@ export async function processReceiptImage(imageBase64: string) {
 }
 
 // Función para procesar datos de onboarding familiar
-export async function processFamilyData(familyMembers: any[], restrictions: any[], prohibitedDishes: string[]) {
+export async function processFamilyData(familyMembers: any[], restrictions: any[], prohibitedDishes: string[], customApiKey?: string) {
+  const openaiInstance = getOpenAIInstance(customApiKey)
   const { text } = await generateText({
-    model: openai("gpt-4o"),
+    model: openaiInstance("gpt-4o"),
     prompt: `
       Analiza estos datos de una familia y proporciona recomendaciones:
       
@@ -134,9 +157,10 @@ export async function processFamilyData(familyMembers: any[], restrictions: any[
 }
 
 // Función para procesar datos de sobrantes
-export async function processLeftovers(leftovers: any[]) {
+export async function processLeftovers(leftovers: any[], customApiKey?: string) {
+  const openaiInstance = getOpenAIInstance(customApiKey)
   const { text } = await generateText({
-    model: openai("gpt-4o"),
+    model: openaiInstance("gpt-4o"),
     prompt: `
       Analiza estos datos de sobrantes de comida y proporciona recomendaciones:
       
@@ -169,9 +193,11 @@ export async function generateWeeklyMenu(
   restrictions: any[],
   prohibitedDishes: string[],
   products: any[],
+  customApiKey?: string
 ) {
+  const openaiInstance = getOpenAIInstance(customApiKey)
   const { text } = await generateText({
-    model: openai("gpt-4o"),
+    model: openaiInstance("gpt-4o"),
     prompt: `
       Genera un menú semanal para esta familia basado en:
       
@@ -253,9 +279,10 @@ export async function generateWeeklyMenu(
 }
 
 // Función para generar métricas y recomendaciones
-export async function generateMetrics(familyMembers: any[], products: any[], leftovers: any[]) {
+export async function generateMetrics(familyMembers: any[], products: any[], leftovers: any[], customApiKey?: string) {
+  const openaiInstance = getOpenAIInstance(customApiKey)
   const { text } = await generateText({
-    model: openai("gpt-4o"),
+    model: openaiInstance("gpt-4o"),
     prompt: `
       Genera métricas y recomendaciones basadas en:
       

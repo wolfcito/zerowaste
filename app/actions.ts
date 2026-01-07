@@ -18,6 +18,8 @@ import {
   saveShoppingList,
   getShoppingList,
   updateShoppingItemStatus,
+  validateAccessCode as dbValidateAccessCode,
+  incrementCodeUsage,
 } from "@/services/supabase-service"
 
 import {
@@ -47,7 +49,7 @@ const logger = {
 }
 
 // Acción para guardar datos de onboarding familiar
-export async function saveFamilyData(familyMembers: any[], restrictions: any[], prohibitedDishes: string[]) {
+export async function saveFamilyData(familyMembers: any[], restrictions: any[], prohibitedDishes: string[], customApiKey?: string) {
   try {
     logger.info('Starting family data save process', {
       familyMembersCount: familyMembers.length,
@@ -62,7 +64,7 @@ export async function saveFamilyData(familyMembers: any[], restrictions: any[], 
     logger.debug('Saved family data to database, processing with AI')
 
     // Procesar datos con OpenAI para obtener recomendaciones
-    const aiResponse = await processFamilyData(familyMembers, restrictions, prohibitedDishes)
+    const aiResponse = await processFamilyData(familyMembers, restrictions, prohibitedDishes, customApiKey)
 
     // Guardar recomendaciones
     if (aiResponse.recommendations && aiResponse.recommendations.length > 0) {
@@ -79,12 +81,12 @@ export async function saveFamilyData(familyMembers: any[], restrictions: any[], 
 }
 
 // Acción para procesar imagen de factura
-export async function processReceipt(imageBase64: string) {
+export async function processReceipt(imageBase64: string, customApiKey?: string) {
   try {
     logger.info('Starting receipt processing')
 
     // Procesar imagen con OpenAI
-    const aiResponse = await processReceiptImage(imageBase64)
+    const aiResponse = await processReceiptImage(imageBase64, customApiKey)
 
     // Verificar si la respuesta tiene productos
     if (!aiResponse || !aiResponse.products) {
@@ -132,7 +134,7 @@ export async function saveProductCategories(products: any[]) {
 }
 
 // Acción para guardar sobrantes
-export async function saveLeftoversData(leftovers: any[]) {
+export async function saveLeftoversData(leftovers: any[], customApiKey?: string) {
   try {
     logger.info('Starting leftovers save process', { count: leftovers.length })
     await saveLeftovers(leftovers)
@@ -140,7 +142,7 @@ export async function saveLeftoversData(leftovers: any[]) {
     logger.debug('Saved leftovers to database, processing with AI')
 
     // Procesar sobrantes con OpenAI para obtener recomendaciones
-    const aiResponse = await processLeftovers(leftovers)
+    const aiResponse = await processLeftovers(leftovers, customApiKey)
 
     // Guardar recomendaciones
     if (aiResponse.recommendations && aiResponse.recommendations.length > 0) {
@@ -157,7 +159,7 @@ export async function saveLeftoversData(leftovers: any[]) {
 }
 
 // Acción para generar menú semanal
-export async function generateMenu() {
+export async function generateMenu(customApiKey?: string) {
   try {
     logger.info('Starting weekly menu generation')
 
@@ -179,6 +181,7 @@ export async function generateMenu() {
       restrictions,
       prohibitedDishes.map((dish) => dish.name),
       products,
+      customApiKey
     )
 
     // Guardar menú generado
@@ -196,7 +199,7 @@ export async function generateMenu() {
 }
 
 // Acción para generar métricas
-export async function generateMetricsData() {
+export async function generateMetricsData(customApiKey?: string) {
   try {
     logger.info('Starting metrics generation')
 
@@ -212,7 +215,7 @@ export async function generateMetricsData() {
     })
 
     // Generar métricas con OpenAI
-    const aiResponse = await generateMetrics(familyMembers, products, leftovers)
+    const aiResponse = await generateMetrics(familyMembers, products, leftovers, customApiKey)
 
     // Guardar métricas y recomendaciones
     if (aiResponse.metrics) {
@@ -365,5 +368,32 @@ export async function updateShoppingItem(itemId: string, isPurchased: boolean) {
   } catch (error) {
     logger.error('Error updating shopping item', error)
     return { success: false, error }
+  }
+}
+
+// Acción para validar código de acceso
+export async function validateAccessCode(code: string) {
+  try {
+    logger.info('Validating access code')
+
+    const result = await dbValidateAccessCode(code)
+
+    if (result.is_valid && result.code_id) {
+      // Incrementar contador de usos
+      await incrementCodeUsage(result.code_id)
+      logger.info('Access code validated successfully', { code_id: result.code_id })
+    }
+
+    return {
+      success: result.is_valid,
+      message: result.message,
+      codeId: result.code_id
+    }
+  } catch (error) {
+    logger.error('Error validating access code', error)
+    return {
+      success: false,
+      message: 'Error al validar el código'
+    }
   }
 }

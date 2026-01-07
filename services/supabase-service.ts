@@ -420,3 +420,40 @@ export async function updateShoppingItemStatus(itemId: string, isPurchased: bool
     return data
   })
 }
+
+// Servicio para validar códigos de acceso
+export async function validateAccessCode(code: string) {
+  const supabase = createServerSupabaseClient()
+
+  try {
+    const { data, error } = await supabase
+      .rpc('validate_access_code', { input_code: code })
+
+    if (error) {
+      logger.error('Error validating access code', error)
+      throw error
+    }
+
+    return data && data.length > 0 ? data[0] : { is_valid: false, message: 'Código inválido' }
+  } catch (error) {
+    logger.error('Error in validateAccessCode', error)
+    return { is_valid: false, message: 'Error al validar código' }
+  }
+}
+
+// Servicio para incrementar uso de código
+export async function incrementCodeUsage(codeId: string) {
+  const supabase = createServerSupabaseClient()
+
+  try {
+    const { error } = await supabase
+      .rpc('increment_code_usage', { code_id: codeId })
+
+    if (error) {
+      logger.error('Error incrementing code usage', error)
+      throw error
+    }
+  } catch (error) {
+    logger.error('Error in incrementCodeUsage', error)
+  }
+}
