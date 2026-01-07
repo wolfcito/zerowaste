@@ -29,41 +29,41 @@
 ### Planificación Inteligente con IA
 Genera menús semanales completos en segundos considerando las preferencias de tu familia, restricciones alimentarias y productos disponibles en tu despensa.
 
-![Menú Semanal](docs/menú_semanal.png)
+![Menú Semanal](img/menú_semanal.png)
 
 ### Configuración Familiar Personalizada
 Define quién come en casa, restricciones dietéticas (vegetariano, sin gluten, vegano, etc.) e ingredientes a evitar para recibir recomendaciones 100% personalizadas.
 
-![Mis Gustos](docs/_mis_gustos.png)
+![Mis Gustos](img/_mis_gustos.png)
 
 ### Escaneo de Facturas con OCR
 Toma una foto de tu ticket del supermercado y la IA extrae automáticamente todos los productos, cantidades y precios usando GPT-4o Vision.
 
 <div align="center">
-  <img src="docs/subir_factura.png" width="30%" />
-  <img src="docs/validar_datos_de_factura.png" width="30%" />
-  <img src="docs/categorizar_productos.png" width="30%" />
+  <img src="img/subir_factura.png" width="30%" />
+  <img src="img/validar_datos_de_factura.png" width="30%" />
+  <img src="img/categorizar_productos.png" width="30%" />
 </div>
 
 ### Recetas Detalladas Paso a Paso
 Cada receta incluye ingredientes, pasos numerados, tiempos de cocción, nivel de dificultad y valor nutricional.
 
-![Detalle de Receta](docs/detalle_de_receta.png)
+![Detalle de Receta](img/detalle_de_receta.png)
 
 ### Gestión de Sobrantes
 Registra comida sobrante y recibe sugerencias inteligentes de la IA para reutilizarla, reduciendo el desperdicio alimentario.
 
-![Registro de Sobrantes](docs/registro_de_sobrantes.png)
+![Registro de Sobrantes](img/registro_de_sobrantes.png)
 
 ### Lista de Compras Automática
 Genera listas de compras organizadas por categorías directamente desde tu menú semanal.
 
-![Lista de Compras](docs/lista_de_compras.png)
+![Lista de Compras](img/lista_de_compras.png)
 
 ### Métricas y Ahorro
 Visualiza tu progreso con métricas de desperdicio, ahorro estimado y recomendaciones personalizadas para mejorar.
 
-![Métricas y Ahorro](docs/métricas_y_ahorro.png)
+![Métricas y Ahorro](img/métricas_y_ahorro.png)
 
 ---
 
