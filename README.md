@@ -221,7 +221,8 @@ zerowaste.lat/
 - [x] Detalle de receta
 - [x] Procesamiento de facturas
 - [x] Registro de sobrantes
-- [ ] Lista de compras funcional
+- [x] Lista de compras funcional
+- [x] Descarga PDF de lista de compras
 - [ ] Métricas básicas
 
 ### Fase 2: Mejoras (Q2 2026)

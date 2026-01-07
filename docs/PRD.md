@@ -103,7 +103,7 @@ Zerowaste es una aplicación móvil-first que ayuda a las familias a planificar 
 | Generación de menú semanal con IA | Must | ✅ Implementado |
 | Vista de menú semanal | Must | ✅ Implementado |
 | Detalle de receta | Must | ✅ Implementado |
-| Lista de compras automática | Must | 🔄 En progreso |
+| Lista de compras automática | Must | ✅ Implementado |
 | Procesamiento de facturas (OCR) | Should | ✅ Implementado |
 | Registro de sobrantes | Should | ✅ Implementado |
 | Métricas y ahorro | Should | 🔄 En progreso |
