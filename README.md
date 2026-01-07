@@ -1,4 +1,4 @@
-# Sabooor - Tu Chefcito Inteligente
+# Zerowaste - Tu Chefcito Inteligente
 
 <div align="center">
 
@@ -13,9 +13,9 @@
 
 ---
 
-## ¿Qué es Sabooor?
+## ¿Qué es Zerowaste?
 
-**Sabooor** es una aplicación móvil-first impulsada por inteligencia artificial que revoluciona la forma en que las familias planifican sus comidas. Genera menús personalizados basados en preferencias familiares, restricciones dietéticas y productos disponibles, ayudándote a:
+**Zerowaste** es una aplicación móvil-first impulsada por inteligencia artificial que revoluciona la forma en que las familias planifican sus comidas. Genera menús personalizados basados en preferencias familiares, restricciones dietéticas y productos disponibles, ayudándote a:
 
 - **Planificar comidas en segundos** - La IA genera menús semanales completos
 - **Reducir desperdicio hasta 30%** - Optimiza el uso de ingredientes
@@ -69,7 +69,7 @@ Visualiza tu progreso con métricas de desperdicio, ahorro estimado y recomendac
 
 ## Tech Stack
 
-Sabooor está construido con tecnologías modernas de vanguardia:
+Zerowaste está construido con tecnologías modernas de vanguardia:
 
 ### Frontend
 - **Next.js 16.1** - Framework React con App Router
@@ -285,6 +285,6 @@ Este proyecto está bajo la Licencia Apache 2.0. Ver el archivo [LICENSE](LICENS
 
 **Hecho con ❤️ para reducir el desperdicio alimentario**
 
-[Inicio](#sabooor---tu-chefcito-inteligente) • [Características](#características-principales) • [Instalación](#instalación) • [Contribuir](#contribuir)
+[Inicio](#zerowaste---tu-chefcito-inteligente) • [Características](#características-principales) • [Instalación](#instalación) • [Contribuir](#contribuir)
 
 </div>
