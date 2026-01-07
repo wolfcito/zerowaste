@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { useRouter } from "next/navigation"
 import { processReceipt } from "@/app/actions"
+import { getCustomApiKey } from "@/lib/auth"
 import { BottomNavigation } from "./bottom-navigation"
 
 export function SubirFactura() {
@@ -42,7 +43,10 @@ export function SubirFactura() {
       setError(null)
 
       try {
-        const result = await processReceipt(preview)
+        // Get custom API key if user is using BYOK
+        const customApiKey = getCustomApiKey()
+
+        const result = await processReceipt(preview, customApiKey || undefined)
 
         if (result.success) {
           router.push("/validar-datos")

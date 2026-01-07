@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation"
 import { Card } from "@/components/ui/card"
 import { createClientSupabaseClient } from "@/lib/supabase"
 import { generateMenu } from "@/app/actions"
+import { getCustomApiKey } from "@/lib/auth"
 import { BottomNavigation } from "@/components/bottom-navigation"
 
 type MealDay = {
@@ -76,7 +77,10 @@ export function MenuSemanal() {
   const handleGenerateMenu = async () => {
     setIsGenerating(true)
     try {
-      const result = await generateMenu()
+      // Get custom API key if user is using BYOK
+      const customApiKey = getCustomApiKey()
+
+      const result = await generateMenu(customApiKey || undefined)
       if (result.success && result.weeklyMenu) {
         setWeekMenu(result.weeklyMenu)
       }

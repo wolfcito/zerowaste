@@ -8,6 +8,7 @@ import { useRouter } from "next/navigation"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Input } from "@/components/ui/input"
 import { saveLeftoversData } from "@/app/actions"
+import { getCustomApiKey } from "@/lib/auth"
 import { BottomNavigation } from "./bottom-navigation"
 
 type Leftover = {
@@ -54,7 +55,10 @@ export function RegistroSobrantes() {
     setIsLoading(true)
 
     try {
-      await saveLeftoversData(leftovers)
+      // Get custom API key if user is using BYOK
+      const customApiKey = getCustomApiKey()
+
+      await saveLeftoversData(leftovers, customApiKey || undefined)
       router.push("/")
     } catch (error) {
       console.error("Error saving leftovers:", error)
