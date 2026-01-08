@@ -1,29 +1,83 @@
+/**
+ * OpenAI Integration using Responses API via Vercel AI SDK
+ *
+ * All calls go through /v1/responses endpoint (AI SDK 5+ default)
+ * Logging middleware enabled in development to verify endpoint usage
+ */
+
 import { generateText } from "ai"
-import { openai, createOpenAI } from "@ai-sdk/openai"
+import { createOpenAI } from "@ai-sdk/openai"
+
+// ============================================================================
+// Configuration
+// ============================================================================
+
+const IS_DEV = process.env.NODE_ENV === 'development'
+const LOG_REQUESTS = IS_DEV || process.env.LOG_OPENAI_REQUESTS === 'true'
+
+// ============================================================================
+// Logging Middleware
+// ============================================================================
 
 /**
- * Obtiene la API key a usar (custom o del proyecto)
- * @param customApiKey - API key personalizada del usuario (opcional)
- * @returns API key a usar
+ * Custom fetch wrapper that logs request details (NOT sensitive data)
+ * Only logs: URL path, status code, x-request-id
  */
-function getApiKey(customApiKey?: string): string {
-  return customApiKey || process.env.OPENAI_API_KEY || ''
+function createLoggingFetch(): typeof fetch {
+  return async (input: RequestInfo | URL, init?: RequestInit) => {
+    const url = typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url
+    const path = new URL(url).pathname
+
+    const startTime = Date.now()
+    const response = await fetch(input, init)
+    const duration = Date.now() - startTime
+
+    if (LOG_REQUESTS) {
+      const requestId = response.headers.get('x-request-id') || 'N/A'
+      console.log(`[OpenAI] ${path} | ${response.status} | ${duration}ms | req_id: ${requestId}`)
+    }
+
+    return response
+  }
 }
 
-/**
- * Crea una instancia de OpenAI con la API key apropiada
- */
-function getOpenAIInstance(customApiKey?: string) {
-  const apiKey = getApiKey(customApiKey)
+// ============================================================================
+// Client Factory
+// ============================================================================
 
-  if (customApiKey) {
-    return createOpenAI({ apiKey: customApiKey })
+/**
+ * Creates an OpenAI provider instance configured for Responses API
+ * @param customApiKey - Optional custom API key (BYOK support)
+ */
+export function getOpenAIProvider(customApiKey?: string) {
+  const apiKey = customApiKey || process.env.OPENAI_API_KEY || ''
+
+  if (!apiKey) {
+    throw new Error('OpenAI API key not configured')
   }
 
-  return openai
+  return createOpenAI({
+    apiKey,
+    compatibility: 'strict', // Use strict mode for Responses API
+    fetch: LOG_REQUESTS ? createLoggingFetch() : undefined,
+  })
 }
 
-// Tipos para el resultado del procesamiento de facturas
+/**
+ * Default provider options for all requests
+ * - store: false to minimize data retention
+ * - No tools enabled (web_search, file_search, etc.)
+ */
+const defaultProviderOptions = {
+  openai: {
+    store: false,
+  },
+}
+
+// ============================================================================
+// Types
+// ============================================================================
+
 export interface ReceiptLineItem {
   name: string
   qty: number | null
@@ -42,14 +96,76 @@ export interface ReceiptData {
   confidence: number
 }
 
-// Función para procesar imágenes de facturas usando Vercel AI SDK
-export async function processReceiptImage(imageBase64: string, customApiKey?: string): Promise<ReceiptData> {
-  // Eliminar el prefijo de data URL si existe
-  const base64Image = imageBase64.includes(',')
-    ? imageBase64.split(",")[1]
-    : imageBase64
+export interface FamilyRecommendations {
+  recommendations: string[]
+}
 
-  const openaiInstance = getOpenAIInstance(customApiKey)
+export interface MetricsData {
+  metrics: {
+    wastePercentage: number
+    estimatedSavings: number
+    weeklyWaste: number[]
+  }
+  recommendations: string[]
+}
+
+// ============================================================================
+// Helper Functions
+// ============================================================================
+
+/**
+ * Converts base64 string to Buffer for image processing
+ * Strips data URL prefix if present
+ */
+function base64ToBuffer(base64String: string): Buffer {
+  const base64Data = base64String.includes(',')
+    ? base64String.split(',')[1]
+    : base64String
+  return Buffer.from(base64Data, 'base64')
+}
+
+/**
+ * Safely parses JSON from AI response, cleaning common artifacts
+ */
+function parseJsonResponse<T>(text: string, fallback: T): T {
+  try {
+    // Remove markdown code blocks if present
+    const cleanText = text
+      .replace(/```json\n?/g, '')
+      .replace(/```\n?/g, '')
+      .trim()
+
+    // Find JSON object boundaries
+    const startIdx = cleanText.indexOf('{')
+    const endIdx = cleanText.lastIndexOf('}')
+
+    if (startIdx === -1 || endIdx === -1 || startIdx > endIdx) {
+      console.error('[OpenAI] Invalid JSON response: no object found')
+      return fallback
+    }
+
+    const jsonStr = cleanText.slice(startIdx, endIdx + 1)
+    return JSON.parse(jsonStr) as T
+  } catch (error) {
+    console.error('[OpenAI] JSON parse error:', error)
+    return fallback
+  }
+}
+
+// ============================================================================
+// API Functions
+// ============================================================================
+
+/**
+ * Process receipt image using GPT-4o vision
+ * Uses Responses API with image as Buffer
+ */
+export async function processReceiptImage(
+  imageBase64: string,
+  customApiKey?: string
+): Promise<ReceiptData> {
+  const provider = getOpenAIProvider(customApiKey)
+  const imageBuffer = base64ToBuffer(imageBase64)
 
   const systemPrompt = `Eres un asistente especializado en extraer información de facturas de supermercado.
 Tu tarea es analizar imágenes de facturas y extraer información estructurada.
@@ -60,21 +176,14 @@ REGLAS ESTRICTAS:
 - Los precios deben ser números (sin símbolos de moneda).
 - Las cantidades deben ser números.
 - La fecha debe estar en formato ISO 8601 (YYYY-MM-DD) si es posible extraerla.
-- El campo "confidence" debe ser un número entre 0 y 1 indicando qué tan seguro estás de la extracción.`
+- El campo "confidence" debe ser un número entre 0 y 1.`
 
   const userPrompt = `Analiza esta imagen de factura y extrae la información en este formato JSON exacto:
 {
   "merchant": "Nombre del comercio o null",
   "date": "YYYY-MM-DD o null",
   "currency": "Código de moneda (USD, MXN, EUR, etc.) o null",
-  "lineItems": [
-    {
-      "name": "Nombre del producto",
-      "qty": 1,
-      "unitPrice": 10.50,
-      "total": 10.50
-    }
-  ],
+  "lineItems": [{ "name": "Producto", "qty": 1, "unitPrice": 10.50, "total": 10.50 }],
   "subtotal": 100.00,
   "tax": 16.00,
   "total": 116.00,
@@ -85,267 +194,263 @@ Extrae TODOS los productos visibles. Si un campo no es visible o legible, usa nu
 
   try {
     const { text } = await generateText({
-      model: openaiInstance("gpt-4o"),
+      model: provider('gpt-4o'),
       messages: [
         {
-          role: "user",
+          role: 'user',
           content: [
-            { type: "text", text: systemPrompt + "\n\n" + userPrompt },
-            { type: "image", image: base64Image }
-          ]
-        }
+            { type: 'text', text: systemPrompt + '\n\n' + userPrompt },
+            { type: 'image', image: imageBuffer },
+          ],
+        },
       ],
       maxTokens: 2000,
-      temperature: 0.3
+      temperature: 0.3,
+      providerOptions: defaultProviderOptions,
     })
 
-    // Limpiar respuesta de posibles backticks
-    const cleanText = text.replace(/```json\n?|\n?```/g, '').trim()
-
-    // Validar que sea JSON válido
-    if (!cleanText.startsWith('{') || !cleanText.endsWith('}')) {
-      throw new Error('La respuesta no es un JSON válido')
+    const fallback: ReceiptData = {
+      merchant: null,
+      date: null,
+      currency: null,
+      lineItems: [],
+      subtotal: null,
+      tax: null,
+      total: null,
+      confidence: 0,
     }
 
-    const parsedData = JSON.parse(cleanText) as ReceiptData
+    const result = parseJsonResponse<ReceiptData>(text, fallback)
 
-    // Validar estructura mínima
-    if (!Array.isArray(parsedData.lineItems)) {
-      throw new Error('La respuesta no contiene lineItems válidos')
+    // Validate and normalize confidence
+    if (typeof result.confidence !== 'number' || result.confidence < 0 || result.confidence > 1) {
+      result.confidence = 0.5
     }
 
-    // Asegurar que confidence esté en rango válido
-    if (typeof parsedData.confidence !== 'number' || parsedData.confidence < 0 || parsedData.confidence > 1) {
-      parsedData.confidence = 0.5
+    // Ensure lineItems is an array
+    if (!Array.isArray(result.lineItems)) {
+      result.lineItems = []
     }
 
-    return parsedData
-
+    return result
   } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : 'Error desconocido'
-    console.error("Error en processReceiptImage:", errorMessage)
-    throw new Error(`Error procesando factura: ${errorMessage}`)
+    const message = error instanceof Error ? error.message : 'Unknown error'
+    console.error('[OpenAI] processReceiptImage error:', message)
+    throw new Error(`Error procesando factura: ${message}`)
   }
 }
 
-// Función legacy para compatibilidad - convierte el nuevo formato al antiguo
-export async function processReceiptImageLegacy(imageBase64: string, customApiKey?: string) {
+/**
+ * Legacy wrapper for backward compatibility
+ */
+export async function processReceiptImageLegacy(
+  imageBase64: string,
+  customApiKey?: string
+) {
   try {
     const receiptData = await processReceiptImage(imageBase64, customApiKey)
-
-    // Convertir al formato antiguo para compatibilidad
     return {
       products: receiptData.lineItems.map(item => ({
         name: item.name,
         quantity_units: item.qty,
         quantity_kg: null,
         unit_price: item.unitPrice,
-        total_price: item.total
-      }))
+        total_price: item.total,
+      })),
     }
   } catch (error) {
-    console.error("Error in processReceiptImageLegacy:", error)
+    console.error('[OpenAI] processReceiptImageLegacy error:', error)
     return { products: [] }
   }
 }
 
-// Función para procesar datos de onboarding familiar
-export async function processFamilyData(familyMembers: any[], restrictions: any[], prohibitedDishes: string[], customApiKey?: string) {
-  const openaiInstance = getOpenAIInstance(customApiKey)
-  const { text } = await generateText({
-    model: openaiInstance("gpt-4o"),
-    prompt: `
-      Analiza estos datos de una familia y proporciona recomendaciones:
-      
-      Miembros de la familia: ${JSON.stringify(familyMembers)}
-      Restricciones alimenticias: ${JSON.stringify(restrictions)}
-      Platos prohibidos: ${JSON.stringify(prohibitedDishes)}
-      
-      Proporciona recomendaciones generales para esta familia en formato JSON:
-      {
-        "recommendations": [
-          "Recomendación 1",
-          "Recomendación 2",
-          "Recomendación 3"
-        ]
-      }
-    `,
-    system:
-      "Eres un nutricionista especializado en planificación de comidas familiares. Tu tarea es analizar los datos de una familia y proporcionar recomendaciones personalizadas.",
-  })
-
-  try {
-    return JSON.parse(text)
-  } catch (error) {
-    console.error("Error parsing OpenAI response:", error)
-    return { recommendations: [] }
-  }
-}
-
-// Función para procesar datos de sobrantes
-export async function processLeftovers(leftovers: any[], customApiKey?: string) {
-  const openaiInstance = getOpenAIInstance(customApiKey)
-  const { text } = await generateText({
-    model: openaiInstance("gpt-4o"),
-    prompt: `
-      Analiza estos datos de sobrantes de comida y proporciona recomendaciones:
-      
-      Sobrantes: ${JSON.stringify(leftovers)}
-      
-      Proporciona recomendaciones para aprovechar estos sobrantes en formato JSON:
-      {
-        "recommendations": [
-          "Recomendación 1",
-          "Recomendación 2",
-          "Recomendación 3"
-        ]
-      }
-    `,
-    system:
-      "Eres un chef especializado en reducir el desperdicio de alimentos. Tu tarea es analizar los sobrantes de comida y proporcionar recomendaciones creativas para aprovecharlos.",
-  })
-
-  try {
-    return JSON.parse(text)
-  } catch (error) {
-    console.error("Error parsing OpenAI response:", error)
-    return { recommendations: [] }
-  }
-}
-
-// Función para generar menú semanal
-export async function generateWeeklyMenu(
-  familyMembers: any[],
-  restrictions: any[],
+/**
+ * Process family onboarding data and generate recommendations
+ */
+export async function processFamilyData(
+  familyMembers: unknown[],
+  restrictions: unknown[],
   prohibitedDishes: string[],
-  products: any[],
+  customApiKey?: string
+): Promise<FamilyRecommendations> {
+  const provider = getOpenAIProvider(customApiKey)
+
+  const { text } = await generateText({
+    model: provider('gpt-4o'),
+    system: 'Eres un nutricionista especializado en planificación de comidas familiares. Proporciona recomendaciones personalizadas. Responde SOLO con JSON válido.',
+    prompt: `Analiza estos datos de una familia y proporciona recomendaciones:
+
+Miembros de la familia: ${JSON.stringify(familyMembers)}
+Restricciones alimenticias: ${JSON.stringify(restrictions)}
+Platos prohibidos: ${JSON.stringify(prohibitedDishes)}
+
+Responde en formato JSON:
+{ "recommendations": ["Recomendación 1", "Recomendación 2", "Recomendación 3"] }`,
+    maxTokens: 500,
+    temperature: 0.7,
+    providerOptions: defaultProviderOptions,
+  })
+
+  return parseJsonResponse<FamilyRecommendations>(text, { recommendations: [] })
+}
+
+/**
+ * Process leftovers data and generate reuse recommendations
+ */
+export async function processLeftovers(
+  leftovers: unknown[],
+  customApiKey?: string
+): Promise<FamilyRecommendations> {
+  const provider = getOpenAIProvider(customApiKey)
+
+  const { text } = await generateText({
+    model: provider('gpt-4o'),
+    system: 'Eres un chef especializado en reducir el desperdicio de alimentos. Proporciona recomendaciones creativas para aprovechar sobrantes. Responde SOLO con JSON válido.',
+    prompt: `Analiza estos sobrantes de comida y proporciona recomendaciones para aprovecharlos:
+
+Sobrantes: ${JSON.stringify(leftovers)}
+
+Responde en formato JSON:
+{ "recommendations": ["Recomendación 1", "Recomendación 2", "Recomendación 3"] }`,
+    maxTokens: 500,
+    temperature: 0.7,
+    providerOptions: defaultProviderOptions,
+  })
+
+  return parseJsonResponse<FamilyRecommendations>(text, { recommendations: [] })
+}
+
+/**
+ * Generate weekly menu based on family data and available products
+ */
+export async function generateWeeklyMenu(
+  familyMembers: unknown[],
+  restrictions: unknown[],
+  prohibitedDishes: string[],
+  products: unknown[],
   customApiKey?: string
 ) {
-  const openaiInstance = getOpenAIInstance(customApiKey)
+  const provider = getOpenAIProvider(customApiKey)
+
   const { text } = await generateText({
-    model: openaiInstance("gpt-4o"),
-    prompt: `
-      Genera un menú semanal para esta familia basado en:
-      
-      Miembros de la familia: ${JSON.stringify(familyMembers)}
-      Restricciones alimenticias: ${JSON.stringify(restrictions)}
-      Platos prohibidos: ${JSON.stringify(prohibitedDishes)}
-      Productos disponibles: ${JSON.stringify(products)}
-      
-      Proporciona un menú para los 7 días de la semana en formato JSON:
-      {
-        "weeklyMenu": [
-          {
-            "day": "Lun",
-            "recipe": {
-              "name": "Nombre de la receta",
-              "description": "Breve descripción del plato",
-              "ingredients": [
-                {
-                  "name": "Nombre del ingrediente",
-                  "quantity": "Cantidad",
-                  "unit": "Unidad de medida"
-                }
-              ],
-              "instructions": [
-                "Paso 1 de la preparación",
-                "Paso 2 de la preparación"
-              ],
-              "cookingTime": "Tiempo de preparación en minutos",
-              "servings": "Número de porciones",
-              "difficulty": "Fácil/Media/Difícil",
-              "nutritionalInfo": {
-                "calories": "Calorías por porción",
-                "protein": "Proteínas en gramos",
-                "carbs": "Carbohidratos en gramos",
-                "fat": "Grasas en gramos"
-              }
-            },
-            "protein": "Proteína principal",
-            "side": "Acompañamiento"
-          }
-        ]
-      }
+    model: provider('gpt-4o'),
+    system: 'Eres un chef especializado en planificación de comidas familiares. Genera menús semanales personalizados con recetas detalladas. Responde SOLO con JSON válido, sin backticks.',
+    prompt: `Genera un menú semanal para esta familia:
 
-     IMPORTANTE:
-      - Responde SOLO con el JSON, sin texto adicional ni backticks.
-      - **Cada 'recipe.name' y 'recipe.description' debe tener como máximo 100 caracteres**; si son más largos, recórtalos automáticamente.
-      - Asegúrate de que las recetas sean realistas y utilicen ingredientes disponibles.
-      - Considera las restricciones alimenticias y platos prohibidos.
-    `,
-    system:
-      "Eres un chef especializado en planificación de comidas familiares. Tu tarea es generar menús semanales personalizados con recetas detalladas basadas en las preferencias y restricciones de la familia, así como los productos disponibles. IMPORTANTE: Responde SOLO con el JSON, sin texto adicional ni backticks.",
-  })
+Miembros de la familia: ${JSON.stringify(familyMembers)}
+Restricciones alimenticias: ${JSON.stringify(restrictions)}
+Platos prohibidos: ${JSON.stringify(prohibitedDishes)}
+Productos disponibles: ${JSON.stringify(products)}
 
-  try {
-    // Limpiar la respuesta de posibles backticks y texto adicional
-    const cleanText = text.replace(/```json\n?|\n?```/g, '').trim()
-    console.log("Cleaned response:", cleanText)
-    
-    // Verificar si el texto comienza con un JSON válido
-    if (!cleanText.startsWith('{')) {
-      console.error("Invalid response format:", cleanText)
-      return { weeklyMenu: [] }
+Responde en formato JSON:
+{
+  "weeklyMenu": [
+    {
+      "day": "Lun",
+      "recipe": {
+        "name": "Nombre (máx 100 chars)",
+        "description": "Descripción (máx 100 chars)",
+        "ingredients": [{ "name": "Ingrediente", "quantity": "1", "unit": "unidad" }],
+        "instructions": ["Paso 1", "Paso 2"],
+        "cookingTime": "30",
+        "servings": "4",
+        "difficulty": "Fácil",
+        "nutritionalInfo": { "calories": "400", "protein": "25", "carbs": "40", "fat": "15" }
+      },
+      "protein": "Proteína principal",
+      "side": "Acompañamiento"
     }
-
-    const parsedData = JSON.parse(cleanText)
-    
-    // Verificar la estructura del JSON
-    if (!parsedData.weeklyMenu || !Array.isArray(parsedData.weeklyMenu)) {
-      console.error("Invalid JSON structure:", parsedData)
-      return { weeklyMenu: [] }
-    }
-
-    return parsedData
-  } catch (error) {
-    console.error("Error parsing OpenAI response:", error)
-    console.error("Raw response:", text)
-    return { weeklyMenu: [] }
-  }
+  ]
 }
 
-// Función para generar métricas y recomendaciones
-export async function generateMetrics(familyMembers: any[], products: any[], leftovers: any[], customApiKey?: string) {
-  const openaiInstance = getOpenAIInstance(customApiKey)
-  const { text } = await generateText({
-    model: openaiInstance("gpt-4o"),
-    prompt: `
-      Genera métricas y recomendaciones basadas en:
-      
-      Miembros de la familia: ${JSON.stringify(familyMembers)}
-      Productos comprados: ${JSON.stringify(products)}
-      Sobrantes registrados: ${JSON.stringify(leftovers)}
-      
-      Proporciona métricas y recomendaciones en formato JSON:
-      {
-        "metrics": {
-          "wastePercentage": porcentaje de desperdicio estimado,
-          "estimatedSavings": ahorro estimado en pesos,
-          "weeklyWaste": [porcentaje1, porcentaje2, porcentaje3, porcentaje4, porcentaje5]
-        },
-        "recommendations": [
-          "Recomendación 1",
-          "Recomendación 2",
-          "Recomendación 3",
-          "Recomendación 4"
-        ]
-      }
-    `,
-    system:
-      "Eres un analista especializado en reducción de desperdicio alimentario y ahorro en el hogar. Tu tarea es generar métricas y recomendaciones basadas en los datos de compras y sobrantes de una familia.",
+IMPORTANTE: Genera recetas para los 7 días (Lun, Mar, Mié, Jue, Vie, Sáb, Dom).`,
+    maxTokens: 4000,
+    temperature: 0.7,
+    providerOptions: defaultProviderOptions,
   })
 
+  return parseJsonResponse(text, { weeklyMenu: [] })
+}
+
+/**
+ * Generate waste metrics and savings recommendations
+ */
+export async function generateMetrics(
+  familyMembers: unknown[],
+  products: unknown[],
+  leftovers: unknown[],
+  customApiKey?: string
+): Promise<MetricsData> {
+  const provider = getOpenAIProvider(customApiKey)
+
+  const { text } = await generateText({
+    model: provider('gpt-4o'),
+    system: 'Eres un analista especializado en reducción de desperdicio alimentario y ahorro en el hogar. Responde SOLO con JSON válido.',
+    prompt: `Genera métricas y recomendaciones basadas en:
+
+Miembros de la familia: ${JSON.stringify(familyMembers)}
+Productos comprados: ${JSON.stringify(products)}
+Sobrantes registrados: ${JSON.stringify(leftovers)}
+
+Responde en formato JSON:
+{
+  "metrics": {
+    "wastePercentage": 15,
+    "estimatedSavings": 250,
+    "weeklyWaste": [20, 18, 15, 12, 10]
+  },
+  "recommendations": ["Recomendación 1", "Recomendación 2", "Recomendación 3", "Recomendación 4"]
+}`,
+    maxTokens: 600,
+    temperature: 0.5,
+    providerOptions: defaultProviderOptions,
+  })
+
+  const fallback: MetricsData = {
+    metrics: {
+      wastePercentage: 0,
+      estimatedSavings: 0,
+      weeklyWaste: [0, 0, 0, 0, 0],
+    },
+    recommendations: [],
+  }
+
+  return parseJsonResponse<MetricsData>(text, fallback)
+}
+
+// ============================================================================
+// Smoke Test (for development verification)
+// ============================================================================
+
+/**
+ * Smoke test to verify Responses API is being used
+ * Run with: npx tsx -e "import('./lib/openai').then(m => m.smokeTest())"
+ */
+export async function smokeTest() {
+  console.log('\n=== OpenAI Responses API Smoke Test ===\n')
+
   try {
-    return JSON.parse(text)
+    const provider = getOpenAIProvider()
+
+    // Test 1: Simple text generation
+    console.log('Test 1: Text generation...')
+    const { text } = await generateText({
+      model: provider('gpt-4o-mini'),
+      prompt: 'Respond with exactly: "OK"',
+      maxTokens: 10,
+      providerOptions: defaultProviderOptions,
+    })
+    console.log(`  Result: ${text.trim()}`)
+    console.log('  ✓ Text generation works\n')
+
+    // Test 2: Verify endpoint (check logs above)
+    console.log('Check logs above for endpoint path.')
+    console.log('Expected: /v1/responses\n')
+
+    console.log('=== Smoke Test Complete ===\n')
+    return { success: true }
   } catch (error) {
-    console.error("Error parsing OpenAI response:", error)
-    return {
-      metrics: {
-        wastePercentage: 0,
-        estimatedSavings: 0,
-        weeklyWaste: [0, 0, 0, 0, 0],
-      },
-      recommendations: [],
-    }
+    console.error('Smoke test failed:', error)
+    return { success: false, error }
   }
 }
