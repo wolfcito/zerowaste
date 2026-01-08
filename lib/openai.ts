@@ -23,102 +23,128 @@ function getOpenAIInstance(customApiKey?: string) {
   return openai
 }
 
-// Función para procesar imágenes de facturas
-export async function processReceiptImage(imageBase64: string, customApiKey?: string) {
-  const base64Image = imageBase64.split(",")[1] // Eliminar el prefijo de data URL si existe
+// Tipos para el resultado del procesamiento de facturas
+export interface ReceiptLineItem {
+  name: string
+  qty: number | null
+  unitPrice: number | null
+  total: number | null
+}
+
+export interface ReceiptData {
+  merchant: string | null
+  date: string | null
+  currency: string | null
+  lineItems: ReceiptLineItem[]
+  subtotal: number | null
+  tax: number | null
+  total: number | null
+  confidence: number
+}
+
+// Función para procesar imágenes de facturas usando Vercel AI SDK
+export async function processReceiptImage(imageBase64: string, customApiKey?: string): Promise<ReceiptData> {
+  // Eliminar el prefijo de data URL si existe
+  const base64Image = imageBase64.includes(',')
+    ? imageBase64.split(",")[1]
+    : imageBase64
+
+  const openaiInstance = getOpenAIInstance(customApiKey)
+
+  const systemPrompt = `Eres un asistente especializado en extraer información de facturas de supermercado.
+Tu tarea es analizar imágenes de facturas y extraer información estructurada.
+
+REGLAS ESTRICTAS:
+- Responde ÚNICAMENTE con JSON válido, sin backticks, sin texto adicional.
+- Si no puedes extraer un campo, usa null. NO inventes datos.
+- Los precios deben ser números (sin símbolos de moneda).
+- Las cantidades deben ser números.
+- La fecha debe estar en formato ISO 8601 (YYYY-MM-DD) si es posible extraerla.
+- El campo "confidence" debe ser un número entre 0 y 1 indicando qué tan seguro estás de la extracción.`
+
+  const userPrompt = `Analiza esta imagen de factura y extrae la información en este formato JSON exacto:
+{
+  "merchant": "Nombre del comercio o null",
+  "date": "YYYY-MM-DD o null",
+  "currency": "Código de moneda (USD, MXN, EUR, etc.) o null",
+  "lineItems": [
+    {
+      "name": "Nombre del producto",
+      "qty": 1,
+      "unitPrice": 10.50,
+      "total": 10.50
+    }
+  ],
+  "subtotal": 100.00,
+  "tax": 16.00,
+  "total": 116.00,
+  "confidence": 0.95
+}
+
+Extrae TODOS los productos visibles. Si un campo no es visible o legible, usa null.`
 
   try {
-    const response = await fetch("https://api.openai.com/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${getApiKey(customApiKey)}`
-      },
-      body: JSON.stringify({
-        model: "gpt-4o",
-        messages: [
-          {
-            role: "system",
-            content: "Eres un asistente especializado en extraer información de facturas de supermercado. Tu tarea es analizar imágenes de facturas y extraer información detallada de los productos comprados. IMPORTANTE: Responde SOLO con el JSON, sin backticks ni texto adicional. Asegúrate de que el JSON esté completo y bien formateado."
-          },
-          {
-            role: "user",
-            content: [
-              {
-                type: "text",
-                text: `
-                  Analiza esta imagen de una factura de supermercado y extrae la siguiente información en formato JSON:
-                  {
-                    "products": [
-                      {
-                        "name": "Nombre del producto",
-                        "quantity_units": número de unidades (si aplica),
-                        "quantity_kg": cantidad en kilogramos (si aplica),
-                        "unit_price": precio unitario,
-                        "total_price": precio total
-                      }
-                    ]
-                  }
-                  
-                  Asegúrate de extraer todos los productos visibles en la factura.
-                  IMPORTANTE: Asegúrate de que el JSON esté completo y bien formateado.
-                `
-              },
-              {
-                type: "image_url",
-                image_url: {
-                  url: `data:image/jpeg;base64,${base64Image}`
-                }
-              }
-            ]
-          }
-        ],
-        max_tokens: 2000,
-        temperature: 0.3
-      })
+    const { text } = await generateText({
+      model: openaiInstance("gpt-4o"),
+      messages: [
+        {
+          role: "user",
+          content: [
+            { type: "text", text: systemPrompt + "\n\n" + userPrompt },
+            { type: "image", image: base64Image }
+          ]
+        }
+      ],
+      maxTokens: 2000,
+      temperature: 0.3
     })
 
-    if (!response.ok) {
-      const errorData = await response.json()
-      console.error("OpenAI API Error:", errorData)
-      throw new Error(`OpenAI API error: ${errorData.error?.message || 'Unknown error'}`)
+    // Limpiar respuesta de posibles backticks
+    const cleanText = text.replace(/```json\n?|\n?```/g, '').trim()
+
+    // Validar que sea JSON válido
+    if (!cleanText.startsWith('{') || !cleanText.endsWith('}')) {
+      throw new Error('La respuesta no es un JSON válido')
     }
 
-    const data = await response.json()
-    console.log("OpenAI API Response:", data)
+    const parsedData = JSON.parse(cleanText) as ReceiptData
 
-    if (!data.choices?.[0]?.message?.content) {
-      console.error("Unexpected API response structure:", data)
-      throw new Error("Unexpected API response structure")
+    // Validar estructura mínima
+    if (!Array.isArray(parsedData.lineItems)) {
+      throw new Error('La respuesta no contiene lineItems válidos')
     }
 
-    const text = data.choices[0].message.content
-    console.log("Extracted text:", text)
+    // Asegurar que confidence esté en rango válido
+    if (typeof parsedData.confidence !== 'number' || parsedData.confidence < 0 || parsedData.confidence > 1) {
+      parsedData.confidence = 0.5
+    }
 
-    try {
-      // Limpiar la respuesta de posibles backticks y texto adicional
-      const cleanText = text.replace(/```json\n?|\n?```/g, '').trim()
-      
-      // Verificar si el JSON está completo
-      if (!cleanText.endsWith('}')) {
-        console.error("Incomplete JSON response")
-        throw new Error("Incomplete JSON response")
-      }
+    return parsedData
 
-      const parsedData = JSON.parse(cleanText)
-      
-      // Verificar que la estructura sea correcta
-      if (!parsedData.products || !Array.isArray(parsedData.products)) {
-        throw new Error("Invalid JSON structure")
-      }
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Error desconocido'
+    console.error("Error en processReceiptImage:", errorMessage)
+    throw new Error(`Error procesando factura: ${errorMessage}`)
+  }
+}
 
-      return parsedData
-    } catch (error) {
-      console.error("Error parsing OpenAI response:", error)
-      return { products: [] }
+// Función legacy para compatibilidad - convierte el nuevo formato al antiguo
+export async function processReceiptImageLegacy(imageBase64: string, customApiKey?: string) {
+  try {
+    const receiptData = await processReceiptImage(imageBase64, customApiKey)
+
+    // Convertir al formato antiguo para compatibilidad
+    return {
+      products: receiptData.lineItems.map(item => ({
+        name: item.name,
+        quantity_units: item.qty,
+        quantity_kg: null,
+        unit_price: item.unitPrice,
+        total_price: item.total
+      }))
     }
   } catch (error) {
-    console.error("Error in processReceiptImage:", error)
+    console.error("Error in processReceiptImageLegacy:", error)
     return { products: [] }
   }
 }

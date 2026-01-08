@@ -23,7 +23,7 @@ import {
 } from "@/services/supabase-service"
 
 import {
-  processReceiptImage,
+  processReceiptImageLegacy as processReceiptImage,
   processFamilyData,
   processLeftovers,
   generateWeeklyMenu,

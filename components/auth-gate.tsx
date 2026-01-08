@@ -142,7 +142,7 @@ export function AuthGate() {
                   <Input
                     id="code"
                     type="text"
-                    placeholder="ZEROWASTE2026"
+                    placeholder="DEMO"
                     value={code}
                     onChange={(e) => setCode(e.target.value.toUpperCase())}
                     className="text-center text-lg font-mono tracking-wider"
