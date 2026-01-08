@@ -243,12 +243,12 @@ export function OnboardingFamiliar() {
               {avoidedIngredients.map((ingredient, index) => (
                 <div
                   key={index}
-                  className="flex items-center gap-1 bg-secondary/10 text-secondary rounded-full px-3 py-1.5"
+                  className="flex items-center gap-1 bg-primary/10 text-primary rounded-full px-3 py-1.5"
                 >
                   <span className="text-sm font-medium">{ingredient}</span>
                   <button
                     onClick={() => removeIngredient(ingredient)}
-                    className="h-4 w-4 rounded-full flex items-center justify-center hover:bg-secondary/20"
+                    className="h-4 w-4 rounded-full flex items-center justify-center hover:bg-primary/20"
                   >
                     <X className="h-3 w-3" />
                   </button>
